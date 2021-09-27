@@ -1,39 +1,45 @@
 ---
-- hosts: target
-  become: yes
-  remote_user: ec2-user
-  become_user: root
+- name: Install Jenkins
+  hosts: linux
+  gather_facts: false
+  become: true
   tasks:
-  - name: Download Long Term Jenkins release
-    get_url:
-      url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
-      dest: /etc/yum.repos.d/jenkins.repo
+    - name: Install yum
+      yum:
+        name:
+          - wget
+          - java-1.8.0-openjdk
+ 
+    - name: Download jenkins.repo
+      get_url:
+        url: http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo
+        dest: /etc/yum.repos.d/jenkins.repo
+ 
+    - name: Import Jenkins Key
+      rpm_key:
+        state: present
+        key: https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+ 
+    - name: Install Jenkins
+      yum:
+        name: jenkins
+        state: present
+ 
+    - name: Start & Enable Jenkins
+      systemd:
+        name: jenkins
+        state: started
+        enabled: true
+ 
+    - name: Sleep for 30 seconds and continue
+      wait_for: timeout=30
+ 
+    - name: Get init password Jenkins
+      shell: cat /var/lib/jenkins/secrets/initialAdminPassword
+      changed_when: false
+      register: result
+ 
+    - name: Print init password Jenkins
+      debug:
+        var: result.stdout
 
-  - name: Import jenkins key from url
-    ansible.builtin.rpm_key:
-      state: present
-      key: https://pkg.jenkins.io/redhat-stable/jenkins.io.key
-
-  - name: yum update
-    yum:
-      name: '*'
-      state: latest
-
-  - name: Install Java 
-    yum:
-      name: java-8-openjdk-devel
-      state: present
-
-  - name: Install Jenkins
-    yum:
-      name: jenkins
-      state: latest
-
-  - name: daemon-reload to pick up config changes
-    ansible.builtin.systemd:
-      daemon_reload: yes
-
-  - name: Start jenkins
-    ansible.builtin.systemd:
-      name: jenkins
-      state: started
